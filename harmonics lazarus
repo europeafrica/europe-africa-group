@@ -1,0 +1,98 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from tkinter import *
+from tkinter import filedialog, ttk, messagebox
+
+# -------------------------------
+# Function: Load and Clean Data
+# -------------------------------
+def load_data():
+    global data
+    
+    file = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx")])
+    
+    if not file:
+        return
+    
+    try:
+        raw = pd.read_excel(file, header=None)
+        
+        # Find row where actual headers exist (contains Ia, Ib, Ic)
+        header_row = None
+        for i in range(len(raw)):
+            if "Ia" in str(raw.iloc[i].values):
+                header_row = i
+                break
+        
+        if header_row is None:
+            messagebox.showerror("Error", "Could not find current columns (Ia, Ib, Ic)")
+            return
+        
+        # Re-read with correct header
+        data = pd.read_excel(file, header=header_row)
+        
+        messagebox.showinfo("Success", "Data Loaded Successfully")
+    
+    except Exception as e:
+        messagebox.showerror("Error", str(e))
+
+
+# -------------------------------
+# Function: Perform FFT
+# -------------------------------
+def analyze():
+    try:
+        phase = phase_var.get()
+        
+        signal = data[phase].dropna().values
+        
+        N = len(signal)
+        fft_vals = np.fft.fft(signal)
+        fft_vals = np.abs(fft_vals)[:N//2]
+        
+        freqs = np.fft.fftfreq(N)[:N//2]
+        
+        # Plot Harmonics
+        plt.figure()
+        plt.bar(freqs, fft_vals)
+        plt.title(f"Harmonic Spectrum ({phase})")
+        plt.xlabel("Frequency")
+        plt.ylabel("Magnitude")
+        plt.show()
+        
+        # THD Calculation
+        fundamental = fft_vals[1]
+        harmonics = np.sqrt(np.sum(fft_vals[2:]**2))
+        
+        thd = (harmonics / fundamental) * 100
+        
+        result_label.config(text=f"THD: {thd:.2f}%")
+        
+    except Exception as e:
+        messagebox.showerror("Error", str(e))
+
+
+# -------------------------------
+# GUI Layout
+# -------------------------------
+root = Tk()
+root.title("Harmonics Analyzer System")
+root.geometry("400x300")
+
+Label(root, text="Harmonic Analysis Tool", font=("Arial", 14)).pack(pady=10)
+
+Button(root, text="Load Excel File", command=load_data).pack(pady=10)
+
+phase_var = StringVar()
+phase_var.set("Ia")
+
+ttk.Label(root, text="Select Phase:").pack()
+ttk.Combobox(root, textvariable=phase_var, values=["Ia", "Ib", "Ic"]).pack(pady=5)
+
+Button(root, text="Analyze Harmonics", command=analyze).pack(pady=15)
+
+result_label = Label(root, text="THD: --", font=("Arial", 12))
+result_label.pack(pady=10)
+
+root.mainloop()
